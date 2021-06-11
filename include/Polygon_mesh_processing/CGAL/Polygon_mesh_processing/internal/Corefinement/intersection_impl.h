@@ -1296,12 +1296,16 @@ public:
     const VertexPointMap& vpm1=nodes.vpm1;
     const VertexPointMap& vpm2=nodes.vpm2;
 
+    ANALYSIS_TICK("start filter intersections")
     filter_intersections(tm1, tm2, vpm1, vpm2, throw_on_self_intersection);
+    ANALYSIS_TICK("end filter intersections 1")
     filter_intersections(tm2, tm1, vpm2, vpm1, throw_on_self_intersection);
+    ANALYSIS_TICK("end filter intersections 2")
 
     Node_id current_node((std::numeric_limits<Node_id>::max)());
     CGAL_assertion(current_node+1==0);
 
+    ANALYSIS_TICK("start handle coplanar")
     #ifndef DO_NOT_HANDLE_COPLANAR_FACES
     //first handle coplanar triangles
     if (&tm1<&tm2)
@@ -1312,6 +1316,7 @@ public:
     if (!coplanar_faces.empty())
       visitor.input_have_coplanar_faces();
     #endif // not DO_NOT_HANDLE_COPLANAR_FACES
+    ANALYSIS_TICK("end handle coplanar")
 
     //compute intersection points of segments and triangles.
     //build the nodes of the graph and connectivity infos
@@ -1322,8 +1327,11 @@ public:
                                          ? stm_edge_to_ltm_faces
                                          : ltm_edge_to_stm_faces;
 
+    ANALYSIS_TICK("start compute_intersection_points")
     compute_intersection_points(tm1_edge_to_tm2_faces, tm1, tm2, vpm1, vpm2, current_node);
+    ANALYSIS_TICK("end compute_intersection_points 1")
     compute_intersection_points(tm2_edge_to_tm1_faces, tm2, tm1, vpm2, vpm1, current_node);
+    ANALYSIS_TICK("end compute_intersection_points 2")
     if (!build_polylines){
       visitor.finalize(nodes,tm1,tm2,vpm1,vpm2);
       return output;
@@ -1334,7 +1342,9 @@ public:
     //  the intersection will be reported twice. We kept track
     //  (check_coplanar_edge(s)) of this so that,
     //  we can remove one intersecting edge out of the two
+    ANALYSIS_TICK("start remove_duplicated_intersecting_edges")
     remove_duplicated_intersecting_edges();
+    ANALYSIS_TICK("end remove_duplicated_intersecting_edges")
 
 #if 0
     //collect connectivity infos and create polylines
@@ -1342,13 +1352,17 @@ public:
 #endif
       //using the graph approach (at some point we know all
       // connections between intersection points)
+        ANALYSIS_TICK("start construct_polylines")
       construct_polylines(output);
+    ANALYSIS_TICK("end construct_polylines")
 #if 0
     else
       construct_polylines_with_info(nodes,out); //direct construction by propagation
 #endif
 
+    ANALYSIS_TICK("start finalize")
     visitor.finalize(nodes,tm1,tm2,vpm1,vpm2);
+    ANALYSIS_TICK("end finalize")
 
     return output;
   }
@@ -1363,7 +1377,9 @@ public:
     const TriangleMesh& tm=nodes.tm1;
     const VertexPointMap& vpm=nodes.vpm1;
 
+    ANALYSIS_TICK("start filter intersections")
     filter_intersections(tm, vpm);
+    ANALYSIS_TICK("end filter intersections")
 
     Node_id current_node((std::numeric_limits<Node_id>::max)());
     CGAL_assertion(current_node+1==0);
@@ -1375,9 +1391,11 @@ public:
 
     CGAL_assertion(ltm_edge_to_stm_faces.empty());
 
+    ANALYSIS_TICK("start compute_intersection_points")
     //compute intersection points of segments and triangles.
     //build the nodes of the graph and connectivity infos
     compute_intersection_points(stm_edge_to_ltm_faces, tm, tm, vpm, vpm, current_node);
+    ANALYSIS_TICK("end compute_intersection_points")
 
     if (!build_polylines){
       visitor.finalize(nodes,tm,tm,vpm,vpm);
@@ -1390,27 +1408,36 @@ public:
     //  (check_coplanar_edge(s)) of this so that,
     //  we can remove one intersecting edge out of the two
 /// TODO AUTOREF_TAG does this happen in coplanar cases only? + shall we do it have new edge splitting?
+    ANALYSIS_TICK("start remove_duplicated_intersecting_edges")
     remove_duplicated_intersecting_edges();
-
+    ANALYSIS_TICK("end remove_duplicated_intersecting_edges")
 
     // If a pair of faces defines an isolated node, check if they share a common
     // vertex and create a new node in that case.
+    ANALYSIS_TICK("start add_common")
     add_common_vertices_for_pairs_of_faces_with_isolated_node(current_node);
+    ANALYSIS_TICK("end add_common")
 
+    ANALYSIS_TICK("start detect_intersections_in_the_graph")
     detect_intersections_in_the_graph(tm, vpm, current_node);
+    ANALYSIS_TICK("end detect_intersections_in_the_graph")
 #if 0
     //collect connectivity infos and create polylines
     if ( Node_visitor::do_need_vertex_graph )
 #endif
       //using the graph approach (at some point we know all
       // connections between intersection points)
+        ANALYSIS_TICK("start construct_polylines")
       construct_polylines(output);
+    ANALYSIS_TICK("end construct_polylines")
 #if 0
     else
       construct_polylines_with_info(nodes,out); //direct construction by propagation
 #endif
 
+    ANALYSIS_TICK("start finalize")
     visitor.finalize(nodes,tm,tm,vpm,vpm);
+    ANALYSIS_TICK("end finalize")
 
     return output;
   }

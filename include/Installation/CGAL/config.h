@@ -57,6 +57,8 @@
 #  include <vld.h>
 #endif // CGAL_ENABLE_VLD
 
+#include <CGAL/spycc.h>
+
 // Workaround to the following bug:
 // https://bugreports.qt-project.org/browse/QTBUG-22829
 #ifdef Q_MOC_RUN

@@ -196,6 +196,7 @@ corefine_and_compute_boolean_operations(
   using parameters::choose_parameter;
   using parameters::get_parameter;
 
+  ANALYSIS_TICK("start get property")
   const bool throw_on_self_intersection =
     choose_parameter(get_parameter(np1, internal_np::throw_on_self_intersection), false);
 
@@ -247,6 +248,7 @@ corefine_and_compute_boolean_operations(
                                    typename std::tuple_element<3, Vpm_out_tuple_helper>::type::Use_default_tag())
   );
 
+  ANALYSIS_TICK("get property")
   if (&tm1==&tm2)
   {
     // for now edges in a coplanar patch are not constrained so there is nothing to constrained here
@@ -328,6 +330,7 @@ corefine_and_compute_boolean_operations(
       return CGAL::make_array(true, true, true, true);
     }
 
+  ANALYSIS_TICK("start edge maps")
 // Edge is-constrained maps
   //for input meshes
   typedef typename internal_np::Lookup_named_param_def <
@@ -361,9 +364,10 @@ corefine_and_compute_boolean_operations(
   typedef typename CGAL::GetInitializedFaceIndexMap<TriangleMesh, NamedParameters1>::type FaceIndexMap1;
   typedef typename CGAL::GetInitializedFaceIndexMap<TriangleMesh, NamedParameters2>::type FaceIndexMap2;
 
+  ANALYSIS_TICK("start face index map")
   FaceIndexMap1 fid_map1 = get_initialized_face_index_map(tm1, np1);
   FaceIndexMap2 fid_map2 = get_initialized_face_index_map(tm2, np2);
-
+  ANALYSIS_TICK("end face index map")
 
   // User visitor
   typedef typename internal_np::Lookup_named_param_def <
@@ -384,12 +388,13 @@ corefine_and_compute_boolean_operations(
                                                   Edge_mark_map_tuple,
                                                   User_visitor> Ob;
 
+  ANALYSIS_TICK("Ob build")
   typedef Corefinement::Surface_intersection_visitor_for_corefinement<
     TriangleMesh, Vpm, Ob, Ecm_in, User_visitor> Algo_visitor;
   Ecm_in ecm_in(tm1,tm2,ecm1,ecm2);
   Edge_mark_map_tuple ecms_out(ecm_out_0, ecm_out_1, ecm_out_2, ecm_out_3);
   Ob ob(tm1, tm2, vpm1, vpm2, fid_map1, fid_map2, ecm_in, vpm_out_tuple, ecms_out, uv, output);
-
+  ANALYSIS_TICK("Ob build")
   // special case used for clipping open meshes
   if (choose_parameter(get_parameter(np1, internal_np::use_bool_op_to_clip_surface), false))
   {
@@ -401,11 +406,14 @@ corefine_and_compute_boolean_operations(
       choose_parameter(get_parameter(np1, internal_np::use_compact_clipper), true);
     ob.setup_for_clipping_a_surface(use_compact_clipper);
   }
+  ANALYSIS_TICK("clip surface")
 
   Corefinement::Intersection_of_triangle_meshes<TriangleMesh, Vpm, Algo_visitor >
     functor(tm1, tm2, vpm1, vpm2, Algo_visitor(uv,ob,ecm_in));
-  functor(CGAL::Emptyset_iterator(), throw_on_self_intersection, true);
 
+  ANALYSIS_TICK("start intersection")
+  functor(CGAL::Emptyset_iterator(), throw_on_self_intersection, true);
+  ANALYSIS_TICK("end intersection")
 
   return CGAL::make_array(ob.union_is_valid(),
                           ob.intersection_is_valid(),
