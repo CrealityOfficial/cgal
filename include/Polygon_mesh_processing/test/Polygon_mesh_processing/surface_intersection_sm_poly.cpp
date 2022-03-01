@@ -2,19 +2,18 @@
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Linear_cell_complex_for_combinatorial_map.h>
-#include <CGAL/boost/graph/graph_traits_Surface_mesh.h>
-#include <CGAL/boost/graph/graph_traits_Polyhedron_3.h>
 #include <CGAL/boost/graph/graph_traits_Linear_cell_complex_for_combinatorial_map.h>
 #include <CGAL/Linear_cell_complex_for_bgl_combinatorial_map_helper.h>
 #include <CGAL/iterator.h>
 
 #include <CGAL/Polygon_mesh_processing/intersection.h>
+#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 #include <CGAL/Timer.h>
-
-namespace PMP=CGAL::Polygon_mesh_processing;
 
 #include <iostream>
 #include <fstream>
+
+namespace PMP = CGAL::Polygon_mesh_processing;
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
 typedef Kernel::Point_3 Point;
@@ -29,13 +28,13 @@ template <class TriangleMesh>
 void run(const char* filename1, const char* filename2, const char* msg)
 {
   TriangleMesh mesh1;
-  if ( !CGAL::read_off(filename1, mesh1) ) {
+  if ( !PMP::IO::read_polygon_mesh(filename1, mesh1) ) {
     std::cerr << filename1 << " is not a valid off file.\n";
     exit(1);
   }
 
   TriangleMesh mesh2;
-  if ( !CGAL::read_off(filename2, mesh2) ) {
+  if ( !PMP::IO::read_polygon_mesh(filename2, mesh2) ) {
     std::cerr << filename2 << " is not a valid off file.\n";
     exit(1);
   }

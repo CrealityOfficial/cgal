@@ -1,8 +1,5 @@
 #include <CGAL/config.h>
 #include <iostream>
-
-#if defined(CGAL_USE_BOOST_PROGRAM_OPTIONS) && ! defined(DONT_USE_BOOST_PROGRAM_OPTIONS)
-
 #include <iomanip>
 #include <fstream>
 #include <utility>
@@ -20,14 +17,12 @@
 
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Polyhedron_items_with_id_3.h>
-#include <CGAL/IO/Polyhedron_iostream.h>
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <boost/property_map/property_map.hpp>
 
-#include <CGAL/boost/graph/graph_traits_Polyhedron_3.h>
 #include <CGAL/boost/graph/iterator.h>
 
 #include <CGAL/Surface_mesh_shortest_path/Surface_mesh_shortest_path_traits.h>
@@ -63,16 +58,16 @@ struct TestMeshProgramInstance
   typedef typename Graph_traits::face_iterator face_iterator;
   typedef CGAL::Surface_mesh_shortest_path<Traits> Surface_mesh_shortest_path;
   typedef typename Surface_mesh_shortest_path::Face_location Face_location;
-  typedef typename boost::property_map<Polyhedron_3, CGAL::vertex_point_t>::type VPM;
-  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::vertex_index_t>::type VIM;
-  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::edge_index_t>::type EIM;
-  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::halfedge_index_t>::type HIM;
-  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::face_index_t>::type FIM;
+  typedef typename boost::property_map<Polyhedron_3, CGAL::vertex_point_t>::const_type VPM;
+  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::vertex_index_t>::const_type VIM;
+  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::edge_index_t>::const_type EIM;
+  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::halfedge_index_t>::const_type HIM;
+  typedef typename boost::property_map<typename Traits::Triangle_mesh, boost::face_index_t>::const_type FIM;
 
   TestMeshProgramInstance()
   {
     debugMode = false;
-    randomizer = NULL;
+    randomizer = nullptr;
     numVertices = 0;
     numIterations = 1;
   }
@@ -352,12 +347,3 @@ int main(int argc, char** argv)
 
   return 0;
 }
-
-
-#else 
- int main()
- {
-   std::cout << "TestMesh.cpp needs Boost Program Options" << std::endl;
-   return 0;
- }
-#endif

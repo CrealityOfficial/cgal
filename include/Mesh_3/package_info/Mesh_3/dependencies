@@ -2,7 +2,6 @@ AABB_tree
 Algebraic_foundations
 Arithmetic_kernel
 BGL
-Box_intersection_d
 CGAL_ImageIO
 Cartesian_kernel
 Circulator
@@ -28,7 +27,6 @@ Number_types
 Polygon
 Polygon_mesh_processing
 Polyhedron
-Polyhedron_IO
 Principal_component_analysis
 Principal_component_analysis_LGPL
 Profiling_tools

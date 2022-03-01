@@ -2,19 +2,10 @@
 // All rights reserved.
 //
 // This file is part of CGAL (www.cgal.org).
-// You can redistribute it and/or modify it under the terms of the GNU
-// General Public License as published by the Free Software Foundation,
-// either version 3 of the License, or (at your option) any later version.
-//
-// Licensees holding a valid commercial license may use this file in
-// accordance with the commercial license agreement provided with the software.
-//
-// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
-// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 //
 // $URL$
 // $Id$
-// SPDX-License-Identifier: GPL-3.0+
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 //
 // Author(s)     : Sebastien Loriot
@@ -40,6 +31,7 @@
 #include <boost/dynamic_bitset.hpp>
 
 namespace CGAL {
+namespace Polygon_mesh_processing {
 namespace Corefinement {
 
 namespace PMP=Polygon_mesh_processing;
@@ -109,6 +101,7 @@ class Output_builder_for_autorefinement
   const VertexPointMap &vpm;
   const FaceIdMap &fids;
   Ecm& ecm;
+  Node_id_map vertex_to_node_id;
   // input meshes closed ?
   bool is_tm_closed;
   // orientation of input surface mesh
@@ -139,7 +132,7 @@ class Output_builder_for_autorefinement
     if ( is_node_of_degree_one.test(src_id) )
     {
       bool res=true;
-      BOOST_FOREACH(halfedge_descriptor h, halfedges_around_source(hedge, tm))
+      for(halfedge_descriptor h : halfedges_around_source(hedge, tm))
         if (is_border(h, tm))
         {
           res = false;
@@ -149,7 +142,7 @@ class Output_builder_for_autorefinement
     }
     if ( is_node_of_degree_one.test(tgt_id) )
     {
-      BOOST_FOREACH(halfedge_descriptor h, halfedges_around_target(hedge, tm))
+      for(halfedge_descriptor h : halfedges_around_target(hedge, tm))
         if (is_border(h, tm))
           return false;
       return true;
@@ -207,6 +200,13 @@ public:
     all_intersection_edges_map[indices].add(hedge);
   }
 
+  void set_vertex_id(vertex_descriptor v, Node_id node_id, const TriangleMesh& tm_)
+  {
+    CGAL_USE(tm_);
+    CGAL_assertion(&tm_==&tm);
+    vertex_to_node_id.insert( std::make_pair(v, node_id) );
+  }
+
   template <class Nodes_vector, class Mesh_to_map_node>
   void operator()(
     const Nodes_vector& nodes,
@@ -214,17 +214,13 @@ public:
     const boost::dynamic_bitset<>& is_node_of_degree_one,
     const Mesh_to_map_node&)
   {
-    // this will initialize face indices if the face index map is writable.
-    helpers::init_face_indices(tm, fids);
-
     // first build an unordered_map mapping a vertex to its node id + a set
     // of all intersection edges
-    Node_id_map vertex_to_node_id;
     typedef boost::unordered_set<edge_descriptor> Intersection_edge_map;
     Intersection_edge_map intersection_edges;
 
     typedef std::pair<const Node_id_pair, Shared_halfedges> Pair_type;
-    BOOST_FOREACH(const Pair_type& p, all_intersection_edges_map)
+    for(const Pair_type& p : all_intersection_edges_map)
     {
       CGAL_assertion(p.second.h1!=boost::graph_traits<TriangleMesh>::null_halfedge());
     // p.second.h2 might be the null halfedge in case two faces sharing an edge
@@ -232,19 +228,24 @@ public:
     // and will be discarded later
       if (p.second.h2==boost::graph_traits<TriangleMesh>::null_halfedge())
         continue;
-      vertex_to_node_id[source(p.second.h1, tm)] = p.first.first;
-      vertex_to_node_id[target(p.second.h1, tm)] = p.first.second;
-      vertex_to_node_id[source(p.second.h2, tm)] = p.first.first;
-      vertex_to_node_id[target(p.second.h2, tm)] = p.first.second;
+      CGAL_assertion( vertex_to_node_id[source(p.second.h1, tm)] == p.first.first);
+      CGAL_assertion( vertex_to_node_id[target(p.second.h1, tm)] == p.first.second);
+      CGAL_assertion( vertex_to_node_id[source(p.second.h2, tm)] == p.first.first);
+      CGAL_assertion( vertex_to_node_id[target(p.second.h2, tm)] == p.first.second);
       intersection_edges.insert(edge(p.second.h1, tm));
       intersection_edges.insert(edge(p.second.h2, tm));
     }
 
-    // this will initialize face indices if the face index map is writable.
-    helpers::init_face_indices(tm, fids);
+    // The property map must be either writable or well-initialized
+    if( CGAL::internal::Is_writable_property_map<FaceIdMap>::value &&
+        !BGL::internal::is_index_map_valid(fids, num_faces(tm), faces(tm)) )
+    {
+      BGL::internal::initialize_face_index_map(fids, tm);
+    }
+    CGAL_assertion(BGL::internal::is_index_map_valid(fids, num_faces(tm), faces(tm)));
 
     // bitset to identify coplanar faces
-    boost::dynamic_bitset<> tm_coplanar_faces(num_faces(tm), 0);
+    std::vector<face_descriptor> tm_coplanar_faces;
 
     // In the following loop we filter intersection edges that are strictly inside a patch
     // of coplanar facets so that we keep only the edges on the border of the patch.
@@ -275,11 +276,6 @@ public:
       }
       else{
         halfedge_descriptor h2_opp = opposite(h2, tm);
-
-        if (is_border_edge(h1,tm) || is_border_edge(h2,tm)){
-          ++epp_it;
-          continue;
-        }
 
         //vertices from tm1
         vertex_descriptor p1 = target(next(h1_opp, tm), tm);
@@ -314,20 +310,20 @@ public:
 
         //mark coplanar facets if any
         if (p1_eq_q1){
-          tm_coplanar_faces.set(get(fids, face(h1_opp, tm)));
-          tm_coplanar_faces.set(get(fids, face(h2_opp, tm)));
+          tm_coplanar_faces.push_back(face(h1_opp, tm));
+          tm_coplanar_faces.push_back(face(h2_opp, tm));
         }
         if (p1_eq_q2){
-          tm_coplanar_faces.set(get(fids, face(h1_opp, tm)));
-          tm_coplanar_faces.set(get(fids, face(h2, tm)));
+          tm_coplanar_faces.push_back(face(h1_opp, tm));
+          tm_coplanar_faces.push_back(face(h2, tm));
         }
         if (p2_eq_q1){
-          tm_coplanar_faces.set(get(fids, face(h1, tm)));
-          tm_coplanar_faces.set(get(fids, face(h2_opp, tm)));
+          tm_coplanar_faces.push_back(face(h1, tm));
+          tm_coplanar_faces.push_back(face(h2_opp, tm));
         }
         if (p2_eq_q2){
-          tm_coplanar_faces.set(get(fids, face(h1, tm)));
-          tm_coplanar_faces.set(get(fids, face(h2, tm)));
+          tm_coplanar_faces.push_back(face(h1, tm));
+          tm_coplanar_faces.push_back(face(h2, tm));
         }
         if ( (p1_eq_q1 || p1_eq_q2) && (p2_eq_q1 || p2_eq_q2) )
           to_remove = true;
@@ -345,7 +341,7 @@ public:
         ++epp_it;
     }
 
-    BOOST_FOREACH(edge_descriptor ed, inter_edges_to_remove)
+    for(edge_descriptor ed : inter_edges_to_remove)
       intersection_edges.erase(ed);
 
     // (1) Assign a patch id to each face indicating in which connected
@@ -356,7 +352,7 @@ public:
       is_intersection(intersection_edges);
     std::size_t nb_patches =
       PMP::connected_components(tm,
-                                bind_property_maps(fids,make_property_map(&patch_ids[0])),
+                                bind_property_maps(fids,make_property_map(patch_ids)),
                                 params::edge_is_constrained_map(
                                     is_intersection)
                                 .face_index_map(fids));
@@ -367,6 +363,12 @@ public:
     boost::dynamic_bitset<> coplanar_patches(nb_patches,false);
     patches_to_keep.set();
     patch_status_not_set.set();
+
+    // set coplanar patches flags
+    for (face_descriptor f : tm_coplanar_faces)
+      coplanar_patches.set( patch_ids[get(fids,f)] );
+
+
     // use a union-find on patches to track the incidence between patches kept
     typedef Union_find<std::size_t> UF;
     UF uf;
@@ -403,10 +405,25 @@ public:
       if ( is_border_edge(h1, tm) ){
         if ( is_border_edge(h2,tm) )
         {
+        // CASE h1 and h2 are boundary edge
           if ( is_border(h1,tm) == is_border(h2,tm) )
           {
-            //Orientation issue, nothing done
-            all_fixed = false;
+            std::size_t pid1 =
+              patch_ids[ get(fids, face( is_border(h1,tm)?opposite(h1,tm):h1 ,tm)) ];
+            if (coplanar_patches[pid1])
+            {
+              std::size_t pid2 =
+                patch_ids[ get(fids, face( is_border(h2,tm)?opposite(h2,tm):h2 ,tm)) ];
+              CGAL_assertion(coplanar_patches[pid2]);
+              // the face of p and the face of q1 have the same orientation: remove both patches
+              patches_to_keep.reset(pid1);
+              patches_to_keep.reset(pid2);
+            }
+            else
+            {
+              //Orientation issue, nothing done
+              all_fixed = false;
+            }
           }
           else
           {
@@ -414,22 +431,42 @@ public:
             {
               std::size_t pid1=patch_ids[ get(fids, face(opposite(h1,tm),tm)) ],
                           pid2=patch_ids[ get(fids, face(h2,tm)) ];
-              uf.unify_sets(patch_handles[pid1], patch_handles[pid2]);
-              patch_status_not_set.reset(pid1);
-              patch_status_not_set.reset(pid2);
+
+              if (coplanar_patches[pid1])
+              {
+                CGAL_assertion(coplanar_patches[pid2]);
+                // arbitrarily remove the patch with the smallest id
+                patches_to_keep.reset(pid1<pid2?pid1:pid2);
+              }
+              else
+              {
+                uf.unify_sets(patch_handles[pid1], patch_handles[pid2]);
+                patch_status_not_set.reset(pid1);
+                patch_status_not_set.reset(pid2);
+              }
             }
             else
             {
               std::size_t pid1=patch_ids[ get(fids, face(h1,tm)) ],
                           pid2=patch_ids[ get(fids, face(opposite(h2,tm),tm)) ];
-              uf.unify_sets(patch_handles[pid1], patch_handles[pid2]);
-              patch_status_not_set.reset(pid1);
-              patch_status_not_set.reset(pid2);
+              if (coplanar_patches[pid1])
+              {
+                CGAL_assertion(coplanar_patches[pid2]);
+                // arbitrarily remove the patch with the smallest id
+                patches_to_keep.reset(pid1<pid2?pid1:pid2);
+              }
+              else
+              {
+                uf.unify_sets(patch_handles[pid1], patch_handles[pid2]);
+                patch_status_not_set.reset(pid1);
+                patch_status_not_set.reset(pid2);
+              }
             }
           }
         }
         else
         {
+        // CASE h1 is a boundary edge and h2 is an interior edge
           halfedge_descriptor h = is_border(h1, tm) ? opposite(h1, tm) : h1;
 
           //Sort the three triangle faces around their common edge
@@ -451,29 +488,98 @@ public:
           patch_status_not_set.reset(patch_id_q1);
           patch_status_not_set.reset(patch_id_q2);
 
-          bool p_is_between_q1q2 = sorted_around_edge(
-            ids.first, ids.second,
-            index_q1, index_q2, index_p,
-            q1, q2, p,
-            vpm, vpm,
-            nodes);
-
-          if (p_is_between_q1q2)
+          if (coplanar_patches.test(patch_id_p))
           {
-            uf.unify_sets(patch_handles[patch_id_q1], patch_handles[patch_id_q2]);
-            patches_to_keep.reset(patch_id_p); // even if badly oriented we can
-          }                                     // simply discard the patch
-          else
-          {
-            if (h==h1)
+            if (index_p == index_q1)
             {
-              //Orientation issue, nothing done for the incident patches
-              all_fixed = false;
+              if ( h!=h1 )
+              {
+                // the face of p and the face of q1 have the same orientation: remove both patches
+                patches_to_keep.reset(patch_id_p);
+                patches_to_keep.reset(patch_id_q1);
+              }
+              else
+              {
+                // arbitrarily remove the patch on the border
+                patches_to_keep.reset(patch_id_p);
+              }
             }
             else
             {
-              uf.unify_sets(patch_handles[patch_id_p], patch_handles[patch_id_q2]);
-              patches_to_keep.reset(patch_id_q1);
+              CGAL_assertion(index_p == index_q2);
+              if ( h==h1 )
+              {
+                // the face of p and the face of q2 have the same orientation: remove both patches
+                patches_to_keep.reset(patch_id_p);
+                patches_to_keep.reset(patch_id_q2);
+              }
+              else
+              {
+                // arbitrarily remove the patch on the border
+                patches_to_keep.reset(patch_id_p);
+              }
+            }
+          }
+          else
+          {
+            bool p_is_between_q1q2 = sorted_around_edge(
+              ids.first, ids.second,
+              index_q1, index_q2, index_p,
+              q1, q2, p,
+              vpm, vpm,
+              nodes);
+
+            if (p_is_between_q1q2)
+            {
+              uf.unify_sets(patch_handles[patch_id_q1], patch_handles[patch_id_q2]);
+              patches_to_keep.reset(patch_id_p); // even if badly oriented we can
+            }                                     // simply discard the patch
+            else
+            {
+              // look for a face amongst those containing q1/q2 with an orientation
+              // compatible with the border face containing p. Then if those two
+              // faces "contains" the third one, we can stitch them.
+              if ( h!=h1 )
+              {
+                CGAL_assertion(h==opposite(h1,tm));
+                // check if we keep p - q2
+                bool q1_is_between_pq2 = sorted_around_edge(
+                  ids.first, ids.second,
+                  index_p, index_q2, index_q1,
+                  p, q2, q1,
+                  vpm, vpm,
+                  nodes);
+                if (q1_is_between_pq2)
+                {
+                  uf.unify_sets(patch_handles[patch_id_p], patch_handles[patch_id_q2]);
+                  patches_to_keep.reset(patch_id_q1);
+                }
+                else
+                {
+                  //Orientation issue, nothing done for the incident patches
+                  all_fixed = false;
+                }
+              }
+              else
+              {
+                // check if we keep p - q1
+                bool q2_is_between_q1p = sorted_around_edge(
+                  ids.first, ids.second,
+                  index_q1, index_p, index_q2,
+                  q1, p, q2,
+                  vpm, vpm,
+                  nodes);
+                if (q2_is_between_q1p)
+                {
+                  uf.unify_sets(patch_handles[patch_id_p], patch_handles[patch_id_q1]);
+                  patches_to_keep.reset(patch_id_q2);
+                }
+                else
+                {
+                  //Orientation issue, nothing done for the incident patches
+                  all_fixed = false;
+                }
+              }
             }
           }
         }
@@ -481,6 +587,7 @@ public:
       else
         if ( is_border_edge(h2,tm) )
         {
+          // CASE h2 is a boundary edge and h1 is an interior edge
           halfedge_descriptor h = is_border(h2, tm) ? opposite(h2, tm) : h2;
 
           //Sort the three triangle faces around their common edge
@@ -502,34 +609,104 @@ public:
           patch_status_not_set.reset(patch_id_p2);
           patch_status_not_set.reset(patch_id_q);
 
-          bool q_is_between_p1p2 = sorted_around_edge(
-            ids.first, ids.second,
-            index_p1, index_p2, index_q,
-            p1, p2, q,
-            vpm, vpm,
-            nodes);
-
-          if (q_is_between_p1p2)
+          if (coplanar_patches.test(patch_id_q))
           {
-            uf.unify_sets(patch_handles[patch_id_p1], patch_handles[patch_id_p2]);
-            patches_to_keep.reset(patch_id_q); // even if badly oriented we can
-          }                                     // simply discard the patch
-          else
-          {
-            if (h==h2)
+            if (index_q == index_p1)
             {
-              //Orientation issue, nothing done for the incident patches
-              all_fixed = false;
+              if ( h!=h2 )
+              {
+                // the face of q and the face of p1 have the same orientation: remove both patches
+                patches_to_keep.reset(patch_id_q);
+                patches_to_keep.reset(patch_id_p1);
+              }
+              else
+              {
+                // arbitrarily remove the patch on the border
+                patches_to_keep.reset(patch_id_q);
+              }
             }
             else
             {
-              uf.unify_sets(patch_handles[patch_id_q], patch_handles[patch_id_p2]);
-              patches_to_keep.reset(patch_id_p1);
+              CGAL_assertion(index_q == index_p2);
+              if ( h==h2 )
+              {
+                // the face of q and the face of p2 have the same orientation: remove both patches
+                patches_to_keep.reset(patch_id_q);
+                patches_to_keep.reset(patch_id_p2);
+              }
+              else
+              {
+                // arbitrarily remove the patch on the border
+                patches_to_keep.reset(patch_id_q);
+              }
+            }
+          }
+          else
+          {
+            bool q_is_between_p1p2 = sorted_around_edge(
+              ids.first, ids.second,
+              index_p1, index_p2, index_q,
+              p1, p2, q,
+              vpm, vpm,
+              nodes);
+
+            if (q_is_between_p1p2)
+            {
+              uf.unify_sets(patch_handles[patch_id_p1], patch_handles[patch_id_p2]);
+              patches_to_keep.reset(patch_id_q); // even if badly oriented we can
+            }                                     // simply discard the patch
+            else
+            {
+              // look for a face amongst those containing p1/p2 with an orientation
+              // compatible with the border face  containing q. Then if those two
+              // faces contains the third one, we can stitch them.
+              if ( h!=h2 )
+              {
+                // check if we keep q - p2
+                CGAL_assertion(h==opposite(h2,tm));
+                bool p1_is_between_qp2 = sorted_around_edge(
+                  ids.first, ids.second,
+                  index_q, index_p2, index_p1,
+                  q, p2, p1,
+                  vpm, vpm,
+                  nodes);
+                if (p1_is_between_qp2)
+                {
+                  uf.unify_sets(patch_handles[patch_id_q], patch_handles[patch_id_p2]);
+                  patches_to_keep.reset(patch_id_p1);
+                }
+                else
+                {
+                  //Orientation issue, nothing done for the incident patches
+                  all_fixed = false;
+                }
+              }
+              else
+              {
+                // check if we keep q - p1
+                bool p2_is_between_p1q = sorted_around_edge(
+                  ids.first, ids.second,
+                  index_p1, index_q, index_p2,
+                  p1, q, p2,
+                  vpm, vpm,
+                  nodes);
+                if (p2_is_between_p1q)
+                {
+                  uf.unify_sets(patch_handles[patch_id_q], patch_handles[patch_id_p1]);
+                  patches_to_keep.reset(patch_id_p2);
+                }
+                else
+                {
+                  //Orientation issue, nothing done for the incident patches
+                  all_fixed = false;
+                }
+              }
             }
           }
         }
         else
         {
+          // CASE h1 and h2 are both interior edges
           //Sort the four triangle faces around their common edge
           //  we assume that the exterior of the volume is indicated by
           //  counterclockwise oriented faces
@@ -892,7 +1069,7 @@ public:
     std::vector<edge_descriptor> edges_no_longer_on_intersection;
     std::vector< std::pair<halfedge_descriptor, halfedge_descriptor> > hedge_pairs_to_stitch;
     hedge_pairs_to_stitch.reserve(all_intersection_edges_map.size());
-    BOOST_FOREACH(const Pair_type& p, all_intersection_edges_map)
+    for(const Pair_type& p : all_intersection_edges_map)
     {
       halfedge_descriptor h1 = p.second.h1;
       halfedge_descriptor h2 = p.second.h2;
@@ -907,7 +1084,6 @@ public:
           if ( !patches_to_keep.test(patch_id) )
           {
             edges_no_longer_on_intersection.push_back(edge(h1, tm));
-            edges_no_longer_on_intersection.push_back(edge(h2, tm));
             continue;
           }
         }
@@ -917,7 +1093,6 @@ public:
           if ( !patches_to_keep.test(patch_id) )
           {
             edges_no_longer_on_intersection.push_back(edge(h1, tm));
-            edges_no_longer_on_intersection.push_back(edge(h2, tm));
             continue;
           }
           std::swap(h1, h1_opp);
@@ -949,7 +1124,6 @@ public:
           std::size_t patch_id = patch_ids[get(fids,face(opposite(h2,tm),tm))];
           if ( !patches_to_keep.test(patch_id) )
           {
-            edges_no_longer_on_intersection.push_back(edge(h1, tm));
             edges_no_longer_on_intersection.push_back(edge(h2, tm));
             continue;
           }
@@ -959,7 +1133,6 @@ public:
           std::size_t patch_id = patch_ids[get(fids,face(h2,tm))];
           if ( !patches_to_keep.test(patch_id) )
           {
-            edges_no_longer_on_intersection.push_back(edge(h1, tm));
             edges_no_longer_on_intersection.push_back(edge(h2, tm));
             continue;
           }
@@ -988,15 +1161,16 @@ public:
 
     // Merge patches to keep only 2: one we keep (1) and one we remove (0)
     const std::size_t PATCH_ID_KEPT = 1;
-    BOOST_FOREACH(std::size_t& patch_id, patch_ids)
-      patch_id = patches_to_keep.test(patch_id) ? 1 : 0;
+    for(std::size_t& patch_id : patch_ids)
+      if (patch_id != NID)
+        patch_id = patches_to_keep.test(patch_id) ? 1 : 0;
     nb_patches=2;
     patches_to_keep=boost::dynamic_bitset<>(2,0);
     patches_to_keep.set(PATCH_ID_KEPT);
 
     // remove from the set of intersection edges if the patches on both side have
     // the same status.
-    BOOST_FOREACH(edge_descriptor e, edges_no_longer_on_intersection)
+    for(edge_descriptor e : edges_no_longer_on_intersection)
       intersection_edges.erase(e);
 
     //store the patch description in a container to avoid recomputing it several times
@@ -1012,7 +1186,7 @@ public:
 };
 
 
-} } // CGAL::Corefinement
+} } } // CGAL::Corefinement
 
 #include <CGAL/enable_warnings.h>
 

@@ -4,7 +4,6 @@
 #include <CGAL/boost/graph/split_graph_into_polylines.h>
 #include <fstream>
 
-#include <boost/foreach.hpp>
 
 typedef CGAL::Simple_cartesian<double>                        Kernel;
 typedef Kernel::Point_3                                       Point;
@@ -64,15 +63,15 @@ int main(int argc, char* argv[])
   std::cout << "Number of edges of the skeleton: " << boost::num_edges(skeleton) << "\n";
 
   // Output all the edges of the skeleton.
-  std::ofstream output("skel-poly.cgal");
+  std::ofstream output("skel-poly.polylines.txt");
   Display_polylines display(skeleton,output);
   CGAL::split_graph_into_polylines(skeleton, display);
   output.close();
 
   // Output skeleton points and the corresponding surface points
-  output.open("correspondance-poly.cgal");
-  BOOST_FOREACH(Skeleton_vertex v, vertices(skeleton))
-    BOOST_FOREACH(vertex_descriptor vd, skeleton[v].vertices)
+  output.open("correspondance-poly.polylines.txt");
+  for(Skeleton_vertex v : CGAL::make_range(vertices(skeleton)))
+    for(vertex_descriptor vd : skeleton[v].vertices)
       output << "2 " << skeleton[v].point << " "
                      << get(CGAL::vertex_point, tmesh, vd)  << "\n";
 

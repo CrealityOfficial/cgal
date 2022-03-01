@@ -1,20 +1,11 @@
 // Copyright (c) 2011 CNRS and LIRIS' Establishments (France).
 // All rights reserved.
 //
-// This file is part of CGAL (www.cgal.org); you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 3 of the License,
-// or (at your option) any later version.
-//
-// Licensees holding a valid commercial license may use this file in
-// accordance with the commercial license agreement provided with the software.
-//
-// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
-// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+// This file is part of CGAL (www.cgal.org)
 //
 // $URL$
 // $Id$
-// SPDX-License-Identifier: LGPL-3.0+
+// SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Author(s)     : Guillaume Damiand <guillaume.damiand@liris.cnrs.fr>
 // Contributor(s): Kumar Snehasish <kumar.snehasish@gmail.com>
@@ -25,6 +16,7 @@
 #include <CGAL/Polyhedron_3_to_lcc.h>
 #include <CGAL/Triangulation_3_to_lcc.h>
 #include <QSettings>
+#include <QHeaderView>
 #include <CGAL/Timer.h>
 #include <CGAL/ipower.h>
 #include "import_moka.h"
@@ -38,7 +30,7 @@ void subdivide_lcc_pqq (LCC & m);
 
 #define DELAY_STATUSMSG 1500
 
-MainWindow::MainWindow (QWidget * parent):CGAL::Qt::DemosMainWindow (parent),
+MainWindow::MainWindow (QWidget * parent) : CGAL::Qt::DemosMainWindow (parent),
   nbcube      (0),
   dialogmesh  (this),
   dialogmenger(this),
@@ -77,7 +69,7 @@ MainWindow::MainWindow (QWidget * parent):CGAL::Qt::DemosMainWindow (parent),
 
   QObject::connect(&dialogmesh, SIGNAL(accepted()),
                    this, SLOT(onCreateMeshOk()));
-  this->viewer->setScene(&scene);
+  this->viewer->setScene(&scene, false);
 
   connect_actions ();
   this->addAboutDemo (":/cgal/help/about_Linear_cell_complex_3.html");
@@ -1006,9 +998,9 @@ double compute_angle3d(const Vector_3& v1, const Vector_3& v2)
   double a = CGAL::to_double( (v1*v2) /
                               ( sqrt(v1.squared_length()) * sqrt(v2.squared_length()) ) ) ;
 
-  if (a < -1.0) return acos(-1.0)/M_PI*180.0;
-  else if (a > 1.0) return acos(1.0)/M_PI*180.0;
-  else return acos(a)/M_PI*180.0;
+  if (a < -1.0) return acos(-1.0)/CGAL_PI*180.0;
+  else if (a > 1.0) return acos(1.0)/CGAL_PI*180.0;
+  else return acos(a)/CGAL_PI*180.0;
 }
 
 void MainWindow::on_actionMerge_coplanar_faces_triggered()
@@ -1055,7 +1047,7 @@ void MainWindow::on_actionMerge_coplanar_faces_triggered()
     if ( scene.lcc->beta<0, 2>(*it)==*it || scene.lcc->beta<1, 2>(*it)==*it)
     { // To process dangling edges
 
-      Dart_handle actu = *it, prev=NULL;
+      Dart_handle actu = *it, prev=nullptr;
       do
       {
         if ( scene.lcc->beta<0, 2>(actu)==actu ) prev = scene.lcc->beta<1>(actu);
@@ -1068,9 +1060,9 @@ void MainWindow::on_actionMerge_coplanar_faces_triggered()
           actu = prev;
         }
         else
-          actu = NULL;
+          actu = nullptr;
       }
-      while (actu!=NULL && (scene.lcc->beta<0, 2>(actu)==actu || scene.lcc->beta<1, 2>(actu)==actu));
+      while (actu!=nullptr && (scene.lcc->beta<0, 2>(actu)==actu || scene.lcc->beta<1, 2>(actu)==actu));
     }
     else if ( !CGAL::belong_to_same_cell<LCC, 2>(*scene.lcc, *it,
                                                  scene.lcc->beta<2>(*it)) )
@@ -1183,11 +1175,11 @@ void constrained_delaunay_triangulation(LCC &lcc, Dart_handle d1)
    {
      vh = cdt.insert(lcc.point(it));
      vh->info().dh=it;
-     if( first==NULL )
+     if( first==nullptr )
      {
        first=vh;
      }
-     if( previous!=NULL)
+     if( previous!=nullptr)
      {
        CGAL_assertion( previous !=vh );
        cdt.insert_constraint(previous,vh);
@@ -1210,7 +1202,7 @@ void constrained_delaunay_triangulation(LCC &lcc, Dart_handle d1)
    }
 
    std::queue<CDT::Face_handle> face_queue;
-   CDT::Face_handle face_internal = NULL;
+   CDT::Face_handle face_internal = nullptr;
 
    face_queue.push(cdt.infinite_vertex()->face());
    while(! face_queue.empty() )
@@ -1226,14 +1218,14 @@ void constrained_delaunay_triangulation(LCC &lcc, Dart_handle d1)
          {
            face_queue.push(fh->neighbor(i));
          }
-         else if (face_internal==NULL)
+         else if (face_internal==nullptr)
          {
            face_internal = fh->neighbor(i);
          }
        }
      }
    }
-   if ( face_internal!=NULL )
+   if ( face_internal!=nullptr )
      face_queue.push(face_internal);
 
    while(! face_queue.empty() )
@@ -1293,17 +1285,17 @@ void constrained_delaunay_triangulation(LCC &lcc, Dart_handle d1)
        const CDT::Vertex_handle vb = fh->vertex(cdt.ccw(index));
        const CDT::Vertex_handle vc = fh->vertex(index);
 
-       Dart_handle dd1 = NULL;
+       Dart_handle dd1 = nullptr;
        for (LCC::Dart_of_cell_range<0, 2>::iterator it(lcc.darts_of_cell<0, 2>(va->info().dh).begin());
-            dd1==NULL && it.cont(); ++it)
+            dd1==nullptr && it.cont(); ++it)
        {
          if (lcc.point(lcc.beta<1>(it))==vc->point())
            dd1=it;
        }
 
-       Dart_handle dd2 = NULL;
+       Dart_handle dd2 = nullptr;
        for (LCC::Dart_of_cell_range<0, 2>::iterator it(lcc.darts_of_cell<0, 2>(vb->info().dh).begin());
-            dd2==NULL && it.cont(); ++it)
+            dd2==nullptr && it.cont(); ++it)
        {
          if (lcc.point(lcc.beta<0>(it))==vc->point())
            dd2=it;
@@ -1831,7 +1823,7 @@ void MainWindow::onMengerInc()
       LCC::Attribute_handle<3>::type ah = (scene.lcc)->create_attribute<3>();
       scene.lcc->set_attribute<3>(mengerVolumes[i], ah);
       scene.lcc->info<3>(mengerVolumes[i]).color()=
-          (CGAL::Color(myrandom.get_int(0,256),
+          (CGAL::IO::Color(myrandom.get_int(0,256),
                        myrandom.get_int(0,256),
                        myrandom.get_int(0,256)));
 
@@ -1933,11 +1925,11 @@ void MainWindow::split_vol_in_three(Dart_handle dh, bool removecenter)
   if (scene.lcc->are_attributes_automatically_managed())
   {
     scene.lcc->info<3>(f1).color()=
-      (CGAL::Color(myrandom.get_int(0,256),
+      (CGAL::IO::Color(myrandom.get_int(0,256),
                    myrandom.get_int(0,256),
                    myrandom.get_int(0,256)));
     scene.lcc->info<3>(f2).color()=
-      (CGAL::Color(myrandom.get_int(0,256),
+      (CGAL::IO::Color(myrandom.get_int(0,256),
                    myrandom.get_int(0,256),
                    myrandom.get_int(0,256)));
 
@@ -1987,11 +1979,11 @@ void MainWindow::split_vol_in_nine(Dart_handle dh, bool removecenter)
   if (scene.lcc->are_attributes_automatically_managed())
   {
     scene.lcc->info<3>(f1).color()=
-      (CGAL::Color(myrandom.get_int(0,256),
+      (CGAL::IO::Color(myrandom.get_int(0,256),
                    myrandom.get_int(0,256),
                    myrandom.get_int(0,256)));
     scene.lcc->info<3>(f2).color()=
-      (CGAL::Color(myrandom.get_int(0,256),
+      (CGAL::IO::Color(myrandom.get_int(0,256),
                    myrandom.get_int(0,256),
                    myrandom.get_int(0,256)));
 
@@ -2047,11 +2039,11 @@ void MainWindow::split_vol_in_twentyseven(Dart_handle dh)
   if (scene.lcc->are_attributes_automatically_managed())
   {
     scene.lcc->info<3>(f1).color()=
-      (CGAL::Color(myrandom.get_int(0,256),
+      (CGAL::IO::Color(myrandom.get_int(0,256),
                    myrandom.get_int(0,256),
                    myrandom.get_int(0,256)));
     scene.lcc->info<3>(f2).color()=
-      (CGAL::Color(myrandom.get_int(0,256),
+      (CGAL::IO::Color(myrandom.get_int(0,256),
                    myrandom.get_int(0,256),
                    myrandom.get_int(0,256)));
     update_volume_list_add(scene.lcc->attribute<3>(dh));
@@ -3185,7 +3177,7 @@ void MainWindow::onSierpinskiTriangleInc()
       LCC::Attribute_handle<3>::type ah = (scene.lcc)->create_attribute<3>();
       scene.lcc->set_attribute<3>(sierpinskiTriangleSurfaces[i], ah);
       scene.lcc->info<3>(sierpinskiTriangleSurfaces[i]).color()=
-        (CGAL::Color(myrandom.get_int(0,256),
+        (CGAL::IO::Color(myrandom.get_int(0,256),
                      myrandom.get_int(0,256),
                      myrandom.get_int(0,256)));
 

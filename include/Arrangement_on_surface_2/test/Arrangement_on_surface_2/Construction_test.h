@@ -6,7 +6,7 @@
 #include <string>
 #include <algorithm>
 
-#include <CGAL/basic.h>
+
 #include <CGAL/Timer.h>
 #include <CGAL/Arr_tags.h>
 #include <CGAL/Arrangement_on_surface_2.h>
@@ -172,7 +172,7 @@ Construction_test<T_Geom_traits, T_Topol_traits>::
 Construction_test(const Geom_traits& geom_traits) :
   Base(geom_traits),
   m_geom_traits(geom_traits),
-  m_arr(NULL),
+  m_arr(nullptr),
   m_verbose_level(0)
 {}
 
@@ -188,7 +188,7 @@ void Construction_test<T_Geom_traits, T_Topol_traits>::deallocate_arrangement()
 {
   if (m_arr) {
     delete m_arr;
-    m_arr = NULL;
+    m_arr = nullptr;
   }
 }
 
@@ -270,10 +270,9 @@ bool Construction_test<T_Geom_traits, T_Topol_traits>::are_same_results()
   typename Xcurve_container::iterator xcit = curves_res.begin();
 
   Edge_const_iterator eit;
-  for (eit = m_arr->edges_begin(); eit != m_arr->edges_end(); ++eit) {
-    if (is_interior(eit->source()) && is_interior(eit->target()))
-      *xcit++ = eit->curve();
-  }
+  for (eit = m_arr->edges_begin(); eit != m_arr->edges_end(); ++eit)
+    *xcit++ = eit->curve();
+
   Curve_compare<Geom_traits> curve_compare(m_geom_traits);
   std::sort(curves_res.begin(), xcit, curve_compare);
 

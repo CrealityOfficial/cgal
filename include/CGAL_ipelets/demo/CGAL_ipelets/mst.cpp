@@ -1,18 +1,9 @@
 // Copyright (c) 2018 Inria
 // All rights reserved.
 //
-// This file is part of CGAL (www.cgal.org); you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 3 of the License,
-// or (at your option) any later version.
+// This file is part of CGAL (www.cgal.org)
 //
-// Licensees holding a valid commercial license may use this file in
-// accordance with the commercial license agreement provided with the software.
-//
-// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
-// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-//
-// SPDX-License-Identifier: LGPL-3.0+
+// SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Author(s)     : Marc Glisse
 
@@ -46,7 +37,7 @@ template <typename T>
 struct Is_finite {
   const T* t_;
   Is_finite()
-    : t_(NULL)
+    : t_(nullptr)
   {}
   Is_finite(const T& t)
     : t_(&t)
@@ -69,7 +60,7 @@ VertexIndexMap vertex_id_map;
 typedef boost::associative_property_map<VertexIndexMap> VertexIdPropertyMap;
 VertexIdPropertyMap vertex_index_pmap(vertex_id_map);
 
-void mstIpelet::protected_run(int fn)
+void mstIpelet::protected_run(int /*fn*/)
 {
   std::list<Point_2> pt_list;
 
@@ -104,7 +95,6 @@ void mstIpelet::protected_run(int fn)
    boost::kruskal_minimum_spanning_tree(ft,
                     std::back_inserter(mst),
                     vertex_index_map(vertex_index_pmap));
-   std::cout << "The edges of the Euclidean mimimum spanning tree:" << std::endl;
    for(std::list<edge_descriptor>::iterator it = mst.begin(); it != mst.end(); ++it){
      edge_descriptor ed = *it;
      vertex_descriptor svd = source(ed,t);

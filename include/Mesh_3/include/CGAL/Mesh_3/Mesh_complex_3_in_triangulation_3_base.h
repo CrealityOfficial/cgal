@@ -3,19 +3,10 @@
 // All rights reserved.
 //
 // This file is part of CGAL (www.cgal.org).
-// You can redistribute it and/or modify it under the terms of the GNU
-// General Public License as published by the Free Software Foundation,
-// either version 3 of the License, or (at your option) any later version.
-//
-// Licensees holding a valid commercial license may use this file in
-// accordance with the commercial license agreement provided with the software.
-//
-// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
-// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 //
 // $URL$
 // $Id$
-// SPDX-License-Identifier: GPL-3.0+
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 //
 // Author(s)     : Laurent Rineau, Stéphane Tayeb
@@ -27,7 +18,7 @@
 #ifndef CGAL_MESH_3_MESH_COMPLEX_3_IN_TRIANGULATION_3_BASE_H
 #define CGAL_MESH_3_MESH_COMPLEX_3_IN_TRIANGULATION_3_BASE_H
 
-#include <CGAL/license/Mesh_3.h>
+#include <CGAL/license/Triangulation_3.h>
 
 #include <CGAL/disable_warnings.h>
 
@@ -38,15 +29,19 @@
 #include <CGAL/IO/File_medit.h>
 #include <CGAL/IO/File_maya.h>
 #include <CGAL/Bbox_3.h>
-#include <iostream>
-#include <fstream>
 #include <CGAL/Mesh_3/io_signature.h>
 #include <CGAL/Union_find.h>
+#include <CGAL/Time_stamper.h>
 
 #include <boost/functional/hash.hpp>
+#include <boost/unordered_map.hpp>
+
+#include <iostream>
+#include <fstream>
+
 
 #ifdef CGAL_LINKED_WITH_TBB
-  #include <tbb/atomic.h>
+  #include <atomic>
   #include <tbb/concurrent_hash_map.h>
 
 namespace CGAL {
@@ -56,12 +51,6 @@ namespace CGAL {
     return CGAL::internal::hash_value(it);
   }
 
-
-  template < class DSC, bool Const >
-  std::size_t tbb_hasher(const CGAL::CCC_internal::CCC_iterator<DSC, Const>& it)
-  {
-    return CGAL::CCC_internal::hash_value(it);
-  }
 
   // As Marc Glisse pointed out the TBB hash of a std::pair is
   // simplistic and leads to the
@@ -76,15 +65,23 @@ namespace CGAL {
                                  CGAL::internal::CC_iterator<DSC, Const> > >()(p);
   }
 
-
-  template < class DSC, bool Const >
-  std::size_t tbb_hasher(const std::pair<CGAL::CCC_internal::CCC_iterator<DSC, Const>,
-                                         CGAL::CCC_internal::CCC_iterator<DSC, Const> >& p)
-  {
-    return boost::hash<std::pair<CGAL::CCC_internal::CCC_iterator<DSC, Const>,
-                                 CGAL::CCC_internal::CCC_iterator<DSC, Const> > >()(p);
-  }
-
+  struct Hash_compare_for_TBB {
+    template < class DSC, bool Const >
+    std::size_t hash(const std::pair<CGAL::internal::CC_iterator<DSC, Const>,
+                           CGAL::internal::CC_iterator<DSC, Const> >& p) const
+    {
+      return tbb_hasher(p);
+    }
+    template < class DSC, bool Const >
+    std::size_t operator()(const CGAL::internal::CC_iterator<DSC, Const>& it)
+    {
+      return CGAL::internal::hash_value(it);
+    }
+    template <typename T>
+    bool equal(const T& v1, const T& v2) const {
+      return v1 == v2;
+    }
+  };
 }
 #endif
 
@@ -107,12 +104,12 @@ namespace Mesh_3 {
       // computes and return an ordered pair of Vertex
       Pair_of_vertices
       make_ordered_pair(const Vertex_handle vh1, const Vertex_handle vh2) const {
-	if (vh1 < vh2) {
-	  return std::make_pair(vh1, vh2);
-	}
-	else {
-	  return std::make_pair(vh2, vh1);
-	}
+        if (vh1 < vh2) {
+          return std::make_pair(vh1, vh2);
+        }
+        else {
+          return std::make_pair(vh2, vh1);
+        }
       }
 
       // same from an Edge
@@ -151,6 +148,8 @@ public:
   typedef typename Tr::Facet            Facet;
   typedef typename Tr::Edge             Edge;
   typedef typename Tr::size_type        size_type;
+
+  typedef CGAL::Hash_handles_with_or_without_timestamps Hash_fct;
 
   // Indices types
   typedef typename Tr::Cell::Subdomain_index      Subdomain_index;
@@ -191,7 +190,7 @@ public:
     , manifold_info_initialized_(false) //TODO: parallel!
   {
     // We don't put it in the initialization list because
-    // tbb::atomic has no contructors
+    // std::atomic has no contructors
     number_of_facets_ = 0;
     number_of_cells_ = 0;
   }
@@ -203,8 +202,23 @@ public:
     , edge_facet_counter_(rhs.edge_facet_counter_)
     , manifold_info_initialized_(rhs.manifold_info_initialized_)
   {
-    number_of_facets_ = rhs.number_of_facets_;
-    number_of_cells_ = rhs.number_of_cells_;
+    Init_number_of_elements<Concurrency_tag> init;
+    init(number_of_facets_, rhs.number_of_facets_);
+    init(number_of_cells_, rhs.number_of_cells_);
+  }
+
+  /// Move constructor
+  Mesh_complex_3_in_triangulation_3_base(Self&& rhs)
+    : Base()
+    , tr_(std::move(rhs.tr_))
+    , edge_facet_counter_(std::move(rhs.edge_facet_counter_))
+    , manifold_info_initialized_(std::exchange(rhs.manifold_info_initialized_, false))
+  {
+    Init_number_of_elements<Concurrency_tag> init;
+    init(number_of_facets_, rhs.number_of_facets_);
+    init(number_of_cells_, rhs.number_of_cells_);
+    init(rhs.number_of_facets_); // set to 0
+    init(rhs.number_of_cells_); // set to 0
   }
 
   /// Destructor
@@ -219,6 +233,13 @@ public:
 
   /// Assignment operator
   Self& operator=(Self rhs)
+  {
+    swap(rhs);
+    return *this;
+  }
+
+  /// Assignment operator, also serves as move-assignment
+  Self& operator=(Self&& rhs)
   {
     swap(rhs);
     return *this;
@@ -284,7 +305,7 @@ public:
     int number_of_boundary_incident_edges = 0; // could be a bool
     for (typename std::vector<Edge>::iterator
            eit=edges.begin(), end = edges.end();
-	 eit != end; eit++)
+         eit != end; eit++)
     {
       switch( face_status(*eit) )
       {
@@ -293,7 +314,7 @@ public:
       default :
 #ifdef CGAL_MESHES_DEBUG_REFINEMENT_POINTS
         std::cerr << "singular edge...\n";
-        std::cerr << v->point() << std::endl;
+        std::cerr << tr_.point(v) << std::endl;
 #endif // CGAL_MESHES_DEBUG_REFINEMENT_POINTS
         return SINGULAR;
       }
@@ -304,13 +325,13 @@ public:
     if(nb_components > 1) {
 #ifdef CGAL_MESHES_DEBUG_REFINEMENT_POINTS
       std::cerr << "singular vertex: nb_components=" << nb_components << std::endl;
-      std::cerr << v->point() << std::endl;
+      std::cerr << tr_.point(v) << std::endl;
 #endif // CGAL_MESHES_DEBUG_REFINEMENT_POINTS
       return SINGULAR;
     }
     else { // REGULAR OR BOUNDARY
 #ifdef CGAL_MESHES_DEBUG_REFINEMENT_POINTS
-      std::cerr << "regular or boundary: " << v->point() << std::endl;
+      std::cerr << "regular or boundary: " << tr_.point(v) << std::endl;
 #endif // CGAL_MESHES_DEBUG_REFINEMENT_POINTS
       if (number_of_boundary_incident_edges != 0)
         return BOUNDARY;
@@ -334,7 +355,7 @@ public:
 #ifdef CGAL_LINKED_WITH_TBB
     typename Edge_facet_counter::const_accessor accessor;
     if(!edge_facet_counter_.find(accessor,
-				 this->make_ordered_pair(edge)))
+                                 this->make_ordered_pair(edge)))
       return NOT_IN_COMPLEX;
     switch(accessor->second)
 #else // not CGAL_LINKED_WITH_TBB
@@ -457,15 +478,15 @@ public:
                        bool show_patches = false) const
   {
     // Call global function
-    CGAL::output_to_medit(os,*this,rebind,show_patches);
+    CGAL::IO::output_to_medit(os,*this,rebind,show_patches);
   }
-  
+
   /// Outputs the mesh to maya
-  void output_to_maya(std::ofstream& os,
+  void output_to_maya(std::ostream& os,
                       bool surfaceOnly = true) const
   {
     // Call global function
-    CGAL::output_to_maya(os,*this,surfaceOnly);
+    CGAL::IO::output_to_maya(os,*this,surfaceOnly);
   }
 
   //-------------------------------------------------------
@@ -522,9 +543,10 @@ public:
   /// Swaps this & rhs
   void swap(Self& rhs)
   {
-    std::swap(rhs.number_of_facets_, number_of_facets_);
+    Swap_elements<Concurrency_tag> swapper;
+    swapper(rhs.number_of_facets_, number_of_facets_);
     tr_.swap(rhs.tr_);
-    std::swap(rhs.number_of_cells_, number_of_cells_);
+    swapper(rhs.number_of_cells_, number_of_cells_);
   }
 
   /// Returns bbox
@@ -545,9 +567,11 @@ public:
         fit != end; ++fit)
     {
       Facet facet = *fit;
-      Facet mirror = tr_.mirror_facet(facet);
       set_surface_patch_index(facet.first, facet.second, Surface_patch_index());
-      set_surface_patch_index(mirror.first, mirror.second, Surface_patch_index());
+      if(this->triangulation().dimension() > 2) {
+        Facet mirror = tr_.mirror_facet(facet);
+        set_surface_patch_index(mirror.first, mirror.second, Surface_patch_index());
+      }
     }
     this->number_of_facets_ = 0;
     clear_manifold_info();
@@ -587,12 +611,12 @@ private:
 #ifndef CGAL_LINKED_WITH_TBB
           ++edge_facet_counter_[this->make_ordered_pair(edge_va, edge_vb)];
 #else // CGAL_LINKED_WITH_TBB
-	  {
-	    typename Edge_facet_counter::accessor accessor;
-	    edge_facet_counter_.insert(accessor,
-				       this->make_ordered_pair(edge_va, edge_vb));
-	    ++accessor->second;
-	  }
+          {
+            typename Edge_facet_counter::accessor accessor;
+            edge_facet_counter_.insert(accessor,
+                                       this->make_ordered_pair(edge_va, edge_vb));
+            ++accessor->second;
+          }
 #endif // CGAL_LINKED_WITH_TBB
 
           const std::size_t n = edge_va->cached_number_of_incident_facets();
@@ -617,9 +641,9 @@ private:
     { // fill the union find
       std::vector<Facet> non_filtered_facets;
       if(tr_.is_parallel()) {
-	tr_.incident_facets_threadsafe(v, std::back_inserter(non_filtered_facets));
+        tr_.incident_facets_threadsafe(v, std::back_inserter(non_filtered_facets));
       } else {
-	tr_.incident_facets(v, std::back_inserter(non_filtered_facets));
+        tr_.incident_facets(v, std::back_inserter(non_filtered_facets));
       }
 
       for(typename std::vector<Facet>::iterator
@@ -631,8 +655,9 @@ private:
       }
     }
 
-    typedef std::map<Vertex_handle,
-                     typename Union_find<Facet>::handle> Vertex_set_map;
+    typedef boost::unordered_map<Vertex_handle,
+                                 typename Union_find<Facet>::handle,
+                                 Hash_fct>    Vertex_set_map;
     typedef typename Vertex_set_map::iterator Vertex_set_map_iterator;
 
     Vertex_set_map vsmap;
@@ -644,15 +669,15 @@ private:
       const Cell_handle& ch = (*it).first;
       const int& i = (*it).second;
       for(int j=0; j < 3; ++j) {
-	const Vertex_handle w = ch->vertex(tr_.vertex_triple_index(i,j));
-	if(w != v){
-	  Vertex_set_map_iterator vsm_it = vsmap.find(w);
-	  if(vsm_it != vsmap.end()){
-	    facets.unify_sets(vsm_it->second, it);
-	  } else {
-	    vsmap.insert(std::make_pair(w, it));
-	  }
-	}
+        const Vertex_handle w = ch->vertex(tr_.vertex_triple_index(i,j));
+        if(w != v){
+          Vertex_set_map_iterator vsm_it = vsmap.find(w);
+          if(vsm_it != vsmap.end()){
+            facets.unify_sets(vsm_it->second, it);
+          } else {
+            vsmap.insert(std::make_pair(w, it));
+          }
+        }
       }
     }
     const std::size_t nb_components = facets.number_of_sets();
@@ -661,7 +686,7 @@ private:
     v->set_c2t3_cache(n, nb_components);
     return nb_components;
   }
-  
+
   //-------------------------------------------------------
   // Traversal
   //-------------------------------------------------------
@@ -864,12 +889,65 @@ private:
   {
     typedef size_type type;
   };
+
+  template<typename Concurrency_tag2, typename dummy = void>
+  struct Init_number_of_elements
+  {
+    template<typename T>
+    void operator()(T& a, const T& b)
+    {
+      a = b;
+    }
+    template<typename T>
+    void operator()(T& a)
+    {
+      a = 0;
+    }
+  };
+
+  template<typename Concurrency_tag2, typename dummy = void>
+  struct Swap_elements
+  {
+    template<typename T>
+    void operator()(T& a, T& b)
+    {
+      std::swap(a, b);
+    }
+  };
 #ifdef CGAL_LINKED_WITH_TBB
   // Parallel: atomic
   template<typename dummy>
   struct Number_of_elements<Parallel_tag, dummy>
   {
-    typedef tbb::atomic<size_type> type;
+    typedef std::atomic<size_type> type;
+  };
+
+  template<typename dummy>
+  struct Init_number_of_elements<Parallel_tag, dummy>
+  {
+    template<typename T>
+    void operator()(T& a, const T& b)
+    {
+      a = b.load();
+    }
+    template<typename T>
+    void operator()(T& a)
+    {
+      a = 0;
+    }
+  };
+
+  template<typename dummy>
+  struct Swap_elements<Parallel_tag, dummy>
+  {
+    template<typename T>
+    void operator()(T& a, T& b)
+    {
+      T tmp;
+      tmp.exchange(a);
+      a.exchange(b);
+      b.exchange(tmp);
+    }
   };
 #endif // CGAL_LINKED_WITH_TBB
 
@@ -878,7 +956,8 @@ private:
 
   typedef typename Base::Pair_of_vertices Pair_of_vertices;
 #ifdef CGAL_LINKED_WITH_TBB
-  typedef tbb::concurrent_hash_map<Pair_of_vertices, int> Edge_facet_counter;
+  typedef tbb::concurrent_hash_map<Pair_of_vertices, int,
+                                   Hash_compare_for_TBB> Edge_facet_counter;
 #else // not CGAL_LINKED_WITH_TBB
   typedef std::map<Pair_of_vertices, int> Edge_facet_counter;
 #endif // not CGAL_LINKED_WITH_TBB
@@ -915,12 +994,12 @@ Mesh_complex_3_in_triangulation_3_base<Tr,Ct>::add_to_complex(
         Vertex_handle edge_va = cell->vertex(edge_index_va);
         Vertex_handle edge_vb = cell->vertex(edge_index_vb);
 #ifdef CGAL_LINKED_WITH_TBB
-	{
-	  typename Edge_facet_counter::accessor accessor;
-	  edge_facet_counter_.insert(accessor,
-				     this->make_ordered_pair(edge_va, edge_vb));
-	  ++accessor->second;
-	}
+        {
+          typename Edge_facet_counter::accessor accessor;
+          edge_facet_counter_.insert(accessor,
+                                     this->make_ordered_pair(edge_va, edge_vb));
+          ++accessor->second;
+        }
 #else // not CGAL_LINKED_WITH_TBB
         ++edge_facet_counter_[this->make_ordered_pair(edge_va, edge_vb)];
 #endif // not CGAL_LINKED_WITH_TBB
@@ -935,7 +1014,7 @@ Mesh_complex_3_in_triangulation_3_base<Tr,Ct>::add_to_complex(
         if (j != i) {
 #ifdef CGAL_MESHES_DEBUG_REFINEMENT_POINTS
           if(cell->vertex(j)->is_c2t3_cache_valid())
-            std::cerr << "(" << cell->vertex(j)->point() << ")->invalidate_c2t3_cache()\n";
+            std::cerr << "(" << tr_.point(cell, j) << ")->invalidate_c2t3_cache()\n";
 #endif // CGAL_MESHES_DEBUG_REFINEMENT_POINTS
           cell->vertex(j)->invalidate_c2t3_cache();
         }
@@ -965,12 +1044,12 @@ Mesh_complex_3_in_triangulation_3_base<Tr,Ct>::remove_from_complex(const Facet& 
         const Vertex_handle edge_va = cell->vertex(edge_index_va);
         const Vertex_handle edge_vb = cell->vertex(edge_index_vb);
 #ifdef CGAL_LINKED_WITH_TBB
-	{
-	  typename Edge_facet_counter::accessor accessor;
-	  edge_facet_counter_.insert(accessor,
-				     this->make_ordered_pair(edge_va, edge_vb));
-	  --accessor->second;
-	}
+        {
+          typename Edge_facet_counter::accessor accessor;
+          edge_facet_counter_.insert(accessor,
+                                     this->make_ordered_pair(edge_va, edge_vb));
+          --accessor->second;
+        }
 #else // not CGAL_LINKED_WITH_TBB
         --edge_facet_counter_[this->make_ordered_pair(edge_va, edge_vb)];
 #endif // not CGAL_LINKED_WITH_TBB
@@ -986,7 +1065,7 @@ Mesh_complex_3_in_triangulation_3_base<Tr,Ct>::remove_from_complex(const Facet& 
         if (j != facet.second) {
 #ifdef CGAL_MESHES_DEBUG_REFINEMENT_POINTS
           if(cell->vertex(j)->is_c2t3_cache_valid())
-            std::cerr << "(" << cell->vertex(j)->point() << ")->invalidate_c2t3_cache()\n";
+            std::cerr << "(" << tr_.point(cell, j) << ")->invalidate_c2t3_cache()\n";
 #endif // CGAL_MESHES_DEBUG_REFINEMENT_POINTS
           cell->vertex(j)->invalidate_c2t3_cache();
         }
@@ -1010,12 +1089,12 @@ bbox() const
   }
 
   typename Tr::Finite_vertices_iterator vit = tr_.finite_vertices_begin();
-  Bbox_3 result = (vit++)->point().bbox();
+  Bbox_3 result = tr_.point(vit++).bbox();
 
   for(typename Tr::Finite_vertices_iterator end = tr_.finite_vertices_end();
       vit != end ; ++vit)
   {
-    result = result + vit->point().bbox();
+    result = result + tr_.point(vit).bbox();
   }
 
   return result;

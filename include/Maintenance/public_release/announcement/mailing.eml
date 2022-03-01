@@ -1,76 +1,158 @@
-Subject: CGAL 4.12 Released, Computational Geometry Algorithms Library
+Subject: CGAL 5.3 Released, Computational Geometry Algorithms Library
 Content-Type: text/plain; charset="utf-8"
-Body: 
+Body:
 
-The CGAL Open Source Project is pleased to announce the release 4.12
+The CGAL Open Source Project is pleased to announce the release 5.3
 of CGAL, the Computational Geometry Algorithms Library.
 
 
-*WARNING*: This release features an important change of the CMake scripts
-used to configure the CGAL libraries and examples. Developers using
-makefiles or the Ninja build-system should set the `CMAKE_BUILD_TYPE` to
-`Release` manually, to avoid using CGAL libraries without any compile-time
-optimization. Please read the first paragraph of the release notes
-carefully.
-
-
 Besides fixes and general enhancement to existing packages, the following
-has changed since CGAL 4.11:
+has changed since CGAL 5.2:
+
+General changes
+
+-   The support for the compiled version of CGAL is dropped. Only the
+    header-only version is supported.
+
+-   On Windows, the type used for Exact_rational, in Epick and
+    indirectly (through Lazy_exact_nt) Epeck may now be
+    boost::multiprecision::mpq_rational, as has been the case on other
+    platforms for several releases. This depends on various options and
+    is added to a list that includes mpq_class, CGAL::Gmpq,
+    leda_rational and CGAL::Quotient<CGAL::MP_Float>.
 
 
-Using CGAL Header-only
+Quadtrees, Octrees, and Orthtrees (new package)
 
-- It is now possible to use CGAL without configuring it with CMake, as a
-  header-only library. Note that, even if CGAL is header-only, its
-  dependencies (such as GMP and MPFR) are not all header-only.
+-   This package implements a tree data structure in which each node
+    encloses a hypercubic section of space and each non-leave node has
+    hypercubic children whose edge lengths are half its edge length.
+    Such a data structure is known as a quadtree in 2D, an octree in 3D,
+    and is generalized as an “orthtree” in higher dimensions.
 
+      https://www.cgal.org/2021/04/27/Orthtree/
 
-Compiler Support
-
-- The Microsoft Visual C++ 2017 version 15.3 has introduced support for
-  C++17, with the compilation flag `/std:c++17`. CGAL 4.12 has an initial
-  support for that flag: the code will compile, but a lot of deprecation
-  warnings will remain. Note that Boost version 1.67 is the first version
-  of Boost supporting `/std:c++17`.
-
-- The compilation flag `/permissive-` of Visual C++ is now supported.
+      https://doc.cgal.org/5.3/Manual/packages.html#PkgOrthtree
 
 
-2D Movable Separability of Sets (new package)
+Triangulations on the Sphere (new package)
 
--   A new package called "2D Movable Separability of Sets" has been
-    introduced. It handles a class of problems that deal with moving
-    sets of objects in the plane; the challenge is to avoid collisions
-    between the objects while considering different kinds of motions and
-    various definitions of separation.
+-   This package enables the construction and manipulation of Delaunay
+    triangulations on the 2-sphere. Triangulations are built
+    incrementally and can be modified by insertion or removal of
+    vertices. Point location querying and primitives to build the dual
+    Voronoi diagram are provided.
 
-    At this point this package consists of the implementations of
-    various predicates and constructions related to castings of
-    polygonal objects. In particular, it can be used to determine
-    whether a feasible mold for a polygonal object does exist. If a mold
-    exists, the package can also be used to compute all possible
-    orientations of the feasible molds and the corresponding motions
-    needed to remove the casted object from the mold.
+      https://doc.cgal.org/5.3/Manual/packages.html#PkgTriangulationOnSphere2
 
 
-Classification (new package)
+File Input / Output
 
--   This package offers an algorithm that classifies a data set into a
-    user-defined set of labels (such as ground, vegetation, buildings,
-    etc.). A flexible API is provided so that users can classify any
-    type of data, compute their own local features on the input data
-    set, and define their own labels.
+-   Point set, polygon soup, and polygon mesh file I/O functions have
+    been harmonized and documented:
+    -   Point set I/O functions can be found in the packages
+        Point_set_processing_3, and Point_set_3.
+    -   Polygon mesh I/O functions can be found in the package BGL.
+    -   Polygon soup I/O can be found in the package Stream_support.
+
+A comprehensive list of the supported file formats is available in the
+Stream_support package:
+
+    https://doc.cgal.org/5.3/Stream_support/index.html#IOstreamSupportedFormats
+
+Inversely, the following page can be used to find out which CGAL data
+structures can be used given a specific file format.
+
+    https://doc.cgal.org/5.3/Stream_support/IOStreamSupportedFileFormats.html
 
 
-Kinetic Data Structures (removed package)
+Requirements
 
--   This package has been removed from CGAL-4.12. Users of the package
-    will have to keep using the source code available in CGAL-4.11 or
-    earlier.
+-   The CMake minimal version is now 3.14.
+
+-   The GNU compiler g++ versions 6 and 7 are no longer tested. Only
+    version 8.3 or later are supported
 
 
-See https://www.cgal.org/2018/04/25/cgal412/ for a complete list of
-changes.
+2D and 3D Linear Geometry Kernel
+
+-   Added is_translation(), is_scaling(), is_reflection(), and
+    is_rotation() to the classes Aff_transformation_2 and
+    Aff_transformation_3, which enable determining if the
+    transformations use a specialized representation internally.
+
+
+2D Regularized Boolean Set-Operations
+
+-   Added documentation for the free functions
+    oriented_side(const Point_2& p, ....) that accept a point and a
+    polygon.
+-   Documentation has been improved across the whole package.
+
+
+Polygon Mesh Processing
+
+-   Added the class CGAL::Polyhedral_envelope, providing a way to
+    quickly check if a primitive (point, segment, or triangle) is within
+    a polyhedral envelope around a set of triangles. It is based on the
+    work of Bolun Wang, Teseo Schneider, Yixin Hu, Marco Attene, and
+    Daniele Panozzo. “Exact and efficient polyhedral envelope
+    containment check.” (ACM Trans. Graph., 39-4, July 2020).
+-   Added more functions in the visitor of the corefinement based
+    methods to track all edge creations.
+
+
+Surface Mesh Topology
+
+-   Added the function
+    CGAL::Surface_mesh_topology::Curves_on_surface_topology::is_homotopic_to_simple_cycle(),
+    which can be used to determine whehter a closed path on a surface
+    mesh can be continously transformed to a cycle without self
+    intersection.
+
+
+Surface Mesh Simplification
+
+-   Added a filtering mechanism so that costly tests get only applied to
+    the next candidate for the edge collapse.
+-   Added the class Polyhedral_envelope_filter, which enables to perform
+    mesh simplification inside a polyhedral envelope of the input mesh.
+
+
+2D Polyline Simplification
+
+-   When polylines have common subsequences of vertices, these
+    subsequences may now be simplifified simultaneously.
+
+
+dD Triangulations
+
+-   Added the function insert_if_in_star() to the class
+    CGAL::Regular_triangulation, which enables users to insert a point p
+    in a regular triangulation on the condition that p appears
+    post-insertion in the star of a user-specified, existing vertex.
+
+
+2D and 3D Alpha Shapes
+
+-   Breaking change: The following deprecated classes have been removed:
+    Alpha_shape_euclidean_traits_2,
+    Weighted_alpha_shape_euclidean_traits_2,
+    Alpha_shape_euclidean_traits_3, and
+    Weighted_alpha_shape_euclidean_traits_3. All CGAL kernel can be used
+    directly as models of the concepts of the 2D and 3D Alpha Shape
+    packages.
+
+
+Classification
+
+-   Breaking change: the support for TensorFlow has been dropped; the
+    classifier CGAL::TensorFlow::Neural_network_classifier has been
+    removed.
+
+
+See https://www.cgal.org/2021/07/06/cgal53/ for a
+complete list of changes.
 
 
 The CGAL project is a collaborative effort to develop a robust,
@@ -94,8 +176,7 @@ structures and algorithms, like
   streamlines),
 - optimization algorithms (smallest enclosing sphere of points or
   spheres, smallest enclosing ellipsoid of points, principal
-  component analysis),
-- kinetic data structures
+  component analysis).
 
 
 

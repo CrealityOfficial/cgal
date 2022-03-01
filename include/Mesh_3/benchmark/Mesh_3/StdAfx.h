@@ -131,7 +131,7 @@
 #include <boost/random/linear_congruential.hpp>
 #include <boost/random/uniform_smallint.hpp>
 #include <boost/random/variate_generator.hpp>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/thread/tss.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/type_traits.hpp>
@@ -145,7 +145,6 @@
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/utility.hpp>
 #include <boost/utility/enable_if.hpp>
-#include <boost/utility/result_of.hpp>
 #include <boost/variant.hpp>
 #include <boost/version.hpp>
 
@@ -258,7 +257,6 @@
 //#include <CGAL/Triangulation_3.h>
 //#include <CGAL/triangulation_assertions.h>
 //#include <CGAL/Triangulation_cell_base_3.h>
-//#include <CGAL/Triangulation_cell_base_with_circumcenter_3.h>
 //#include <CGAL/Triangulation_data_structure_3.h>
 //#include <CGAL/Triangulation_ds_cell_base_3.h>
 //#include <CGAL/Triangulation_ds_vertex_base_3.h>

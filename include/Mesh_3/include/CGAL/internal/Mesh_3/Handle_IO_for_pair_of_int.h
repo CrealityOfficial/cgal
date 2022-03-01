@@ -2,19 +2,10 @@
 // All rights reserved.
 //
 // This file is part of CGAL (www.cgal.org).
-// You can redistribute it and/or modify it under the terms of the GNU
-// General Public License as published by the Free Software Foundation,
-// either version 3 of the License, or (at your option) any later version.
-//
-// Licensees holding a valid commercial license may use this file in
-// accordance with the commercial license agreement provided with the software.
-//
-// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
-// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 //
 // $URL$
 // $Id$
-// SPDX-License-Identifier: GPL-3.0+
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 //
 // Author(s)     : Laurent Rineau
@@ -41,13 +32,6 @@ struct Get_io_signature<std::pair<int, int> > {
   }
 }; // end Get_io_signature<std::pair<int, int> >
 
-inline std::ostream& operator<<(std::ostream& out, const std::pair<int, int>& id) {
-  return out << id.first << " " << id.second;
-}
-inline std::istream& operator>>(std::istream& in, std::pair<int, int>& id) {
-  return in >> id.first >> id.second;
-}
-
 template <>
 class Output_rep<std::pair<int, int> > : public IO_rep_is_specialized {
   typedef std::pair<int, int> T;
@@ -57,7 +41,7 @@ public:
   Output_rep( const T& tt) : t(tt) {}
   //! perform the output, calls \c operator\<\< by default.
   std::ostream& operator()( std::ostream& out) const {
-    if(is_ascii(out)) {
+    if(IO::is_ascii(out)) {
       out << t.first << " " << t.second;
     } else {
       CGAL::write(out, t.first);
@@ -78,7 +62,7 @@ public:
   Output_rep(const Variant& v) : v(v) {}
   std::ostream& operator()( std::ostream& out) const {
     if(v.which() == 1) {
-      out << oformat(boost::get<std::pair<int, int> >(v));
+      out << IO::oformat(boost::get<std::pair<int, int> >(v));
     } else {
       out << boost::get<int>(v);
     }
@@ -95,7 +79,7 @@ public:
   Input_rep( T& tt) : t(tt) {}
   //! perform the output, calls \c operator\<\< by default.
   std::istream& operator()( std::istream& in) const {
-    if(is_ascii(in)) {
+    if(IO::is_ascii(in)) {
       in >> t.first >> t.second;
     } else {
       CGAL::read(in, t.first);

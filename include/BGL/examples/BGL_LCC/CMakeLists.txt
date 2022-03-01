@@ -1,47 +1,34 @@
 # Created by the script cgal_create_CMakeLists
 # This is the CMake script for compiling a set of CGAL applications.
 
-project( BGL_LCC_Examples )
-
-
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.1...3.20)
+project(BGL_LCC_Examples)
 
 # CGAL and its components
-find_package( CGAL QUIET COMPONENTS  )
-
-if ( NOT CGAL_FOUND )
-
-  message(STATUS "This project requires the CGAL library, and will not be compiled.")
-  return()  
-
-endif()
-
-# include helper file
-include( ${CGAL_USE_FILE} )
-
+find_package(CGAL REQUIRED)
 
 # Boost and its components
-find_package( Boost REQUIRED )
+find_package(Boost REQUIRED)
 
-if ( NOT Boost_FOUND )
+if(NOT Boost_FOUND)
 
-  message(STATUS "This project requires the Boost library, and will not be compiled.")
+  message(
+    STATUS "This project requires the Boost library, and will not be compiled.")
 
-  return()  
+  return()
 
 endif()
 
 # include for local directory
-include_directories( BEFORE ../../include )
-
 
 # Creating entries for all C++ files with "main" routine
 # ##########################################################
 
-include( CGAL_CreateSingleSourceCGALProgram )
-
 # create a target per cppfile
-file(GLOB_RECURSE cppfiles RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cpp)
+file(
+  GLOB_RECURSE cppfiles
+  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+  *.cpp)
 foreach(cppfile ${cppfiles})
   create_single_source_cgal_program("${cppfile}")
 endforeach()

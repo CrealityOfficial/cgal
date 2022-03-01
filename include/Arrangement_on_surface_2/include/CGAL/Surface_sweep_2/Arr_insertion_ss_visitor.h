@@ -2,19 +2,10 @@
 // All rights reserved.
 //
 // This file is part of CGAL (www.cgal.org).
-// You can redistribute it and/or modify it under the terms of the GNU
-// General Public License as published by the Free Software Foundation,
-// either version 3 of the License, or (at your option) any later version.
-//
-// Licensees holding a valid commercial license may use this file in
-// accordance with the commercial license agreement provided with the software.
-//
-// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
-// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 //
 // $URL$
 // $Id$
-// SPDX-License-Identifier: GPL-3.0+
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Author(s)     : Baruch Zukerman <baruchzu@post.tau.ac.il>
 //                 Ron Wein <wein@post.tau.ac.il>
@@ -76,6 +67,21 @@ private:
   X_monotone_curve_2 sub_cv1;         // Auxiliary variables
   X_monotone_curve_2 sub_cv2;         // (used for splitting curves).
 
+
+  // update halfedge pointing to events, case with overlaps
+  template <class Subcurve_>
+  void update_incident_halfedge_after_split(Subcurve_* sc,
+                                            Halfedge_handle he,
+                                            Halfedge_handle new_he,
+                                            Tag_true);
+
+  // update halfedge pointing to events, case without overlaps
+  template <class Subcurve_>
+  void update_incident_halfedge_after_split(Subcurve_* sc,
+                                            Halfedge_handle he,
+                                            Halfedge_handle new_he,
+                                            Tag_false);
+
 public:
   /*! A notification invoked when a new subcurve is created. */
   void add_subcurve(const X_monotone_curve_2& cv, Subcurve* sc);
@@ -109,6 +115,43 @@ public:
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// update halfedge pointing to events, case with overlaps
+//
+template <typename Hlpr, typename Vis>
+template <class Subcurve_>
+void Arr_insertion_ss_visitor<Hlpr, Vis>::
+update_incident_halfedge_after_split(Subcurve_* sc,
+                                     Halfedge_handle he,
+                                     Halfedge_handle new_he,
+                                     Tag_true)
+{
+  std::vector<Subcurve*> leaves;
+  sc->all_leaves( std::back_inserter(leaves) );
+  for(Subcurve* ssc : leaves)
+  {
+    Event* last_event_on_ssc = ssc->last_event();
+    if (last_event_on_ssc->halfedge_handle() == he)
+      last_event_on_ssc->set_halfedge_handle(new_he->next());
+  }
+}
+
+//-----------------------------------------------------------------------------
+// update halfedge pointing to events, case without overlaps
+//
+template <typename Hlpr, typename Vis>
+template <class Subcurve_>
+void Arr_insertion_ss_visitor<Hlpr, Vis>::
+update_incident_halfedge_after_split(Subcurve_* sc,
+                                     Halfedge_handle he,
+                                     Halfedge_handle new_he,
+                                     Tag_false)
+{
+  Event* last_event_on_sc = sc->last_event();
+  if (last_event_on_sc->halfedge_handle() == he)
+    last_event_on_sc->set_halfedge_handle(new_he->next());
+}
+
+//-----------------------------------------------------------------------------
 // Check if the halfedge associated with the given subcurve will be split
 // at the given event.
 //
@@ -116,7 +159,7 @@ template <typename Hlpr, typename Vis>
 bool Arr_insertion_ss_visitor<Hlpr, Vis>::
 is_split_event(Subcurve* sc, Event* event)
 {
-  if (sc->last_curve().halfedge_handle() == Halfedge_handle(NULL)) return false;
+  if (sc->last_curve().halfedge_handle() == Halfedge_handle(nullptr)) return false;
 
   if (! sc->originating_subcurve1())
     return (sc->left_event() != this->current_event());
@@ -141,9 +184,8 @@ Arr_insertion_ss_visitor<Hlpr, Vis>::split_edge(Halfedge_handle he, Subcurve* sc
   Halfedge_handle new_he =
     this->m_arr_access.split_edge_ex(he, pt.base(),
                                      sub_cv1.base(), sub_cv2.base());
-  Event* last_event_on_sc = sc->last_event();
-  if (last_event_on_sc->halfedge_handle() == he)
-    last_event_on_sc->set_halfedge_handle(new_he->next());
+  // update the halfedge incident to events on the left of the split
+  update_incident_halfedge_after_split(sc, he, new_he, typename Subcurve::Handle_overlaps());
 
   return new_he;
 }
@@ -158,7 +200,7 @@ add_subcurve(const X_monotone_curve_2& cv, Subcurve* sc)
   if (Base::add_subcurve_(cv, sc)) return;
 
   // sc is an overlap Subcurve of existing edge and new curve,
-  // which means that the edeg will have to be modified
+  // which means that the edge will have to be modified
   if (sc->originating_subcurve1()) {
     this->m_arr->modify_edge
       (this->current_event()->halfedge_handle()->next()->twin(), cv.base());
